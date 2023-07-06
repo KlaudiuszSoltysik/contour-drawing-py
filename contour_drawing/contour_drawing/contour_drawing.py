@@ -1,7 +1,6 @@
 #!/usr/bin/python
 import rclpy
 from rclpy.node import Node
-from turtlesim.srv import SetPen
 from turtlesim.msg import Pose
 from geometry_msgs.msg import Twist
 
@@ -15,16 +14,12 @@ class ContourDrawing(Node):
         
         # VARIABLE INITIALIZATION
         self.pose = Pose()
+        
         self.is_first_run = True
         self.skip = False
+        
         self.coordinate_number = 0
         self.contour_number = 0
-        
-        # CONNECT WITH SET_PEN SERVICE
-        self.set_pen_cli = self.create_client(SetPen, 'turtle1/set_pen')
-
-        while not self.set_pen_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Service SetPen not available, waiting again...')
 
         # CREATE SUBSCRIBER TO POSE TOPIC
         self.pose_sub = self.create_subscription(Pose, 'turtle1/pose', self.pose_sub_callback, 10)
@@ -35,17 +30,12 @@ class ContourDrawing(Node):
         
         # EXTRACT CONTOURS FROM IMAGE
         image = cv2.imread("/home/klaudiusz/ros_contour_drawing_py/src/contour_drawing/img/img2.png")
-
         self.height, self.width, _ = image.shape
-
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
         gray_inverted = cv2.bitwise_not(gray)
-
         _, binary = cv2.threshold(gray_inverted, 50, 255, cv2.THRESH_BINARY)
-
         self.contours, _ = cv2.findContours(binary, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
+        
         self.get_coordinate()
         
         # PROMPT USER
@@ -75,7 +65,6 @@ class ContourDrawing(Node):
 
         if abs(self.error_x) <= 0.05 and abs(self.error_y) <= 0.05:
             self.get_coordinate()
-            self.is_drawing = True
         
     
     def move_x(self, control):
@@ -104,7 +93,6 @@ class ContourDrawing(Node):
             
         if self.coordinate_number == len(self.contours[self.contour_number]):
             self.coordinate_number = 0
-            
             self.skip = True        
         
         x, y = self.contours[self.contour_number][self.coordinate_number][0]
@@ -113,26 +101,6 @@ class ContourDrawing(Node):
         self.target_y = 10.5 - (y * 10 / self.height)
         
         self.coordinate_number += 1
-
-    
-    def turn_on_pen(self):
-        req = SetPen.Request()
-        
-        req.r = 255
-        req.g = 255
-        req.b = 255
-
-        future = self.set_pen_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        
-        
-    def turn_off_pen(self):
-        req = SetPen.Request()
-        
-        req.off = 1
-
-        future = self.set_pen_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
         
         
     def pose_sub_callback(self, msg):
